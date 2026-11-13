@@ -1,24 +1,34 @@
 import * as THREE from 'three';
 import { AXES } from '../core/animation.js';
-import { rigParts, partAngles } from '../core/rig.js';
+import { rigParts, skinParts, partAngles, deformLimbPoint, LIMB_SEGMENTS } from '../core/rig.js';
 import { FACE_CHANNELS } from '../core/character-controls.js';
 import { pixelTexture, skinRects, createDefaultSkin } from './textures.js';
 
-export function skinBox(part, origin, expansion = 0) {
+export function skinBox(part, origin, expansion = 0, segments = 1) {
   const [width, height, depth] = part.size.map(n => n * 16);
-  const geometry = new THREE.BoxGeometry(...part.size.map(n => n + expansion));
+  const geometry = new THREE.BoxGeometry(...part.size.map(n => n + expansion), 1, segments, 1);
   const uv = geometry.getAttribute('uv');
   skinRects(...origin, width, part.slice ? height * 2 : height, depth).forEach(([x, y, w, h], face) => {
     if (part.slice && face !== 2 && face !== 3) { h /= 2; if (part.slice === 'lower') y += h; }
-    for (let i = 0; i < 4; i++) {
-      const index = face * 4 + i;
+    const group = geometry.groups[face];
+    const vertices = new Set(Array.from(geometry.index.array.slice(group.start, group.start + group.count)));
+    for (const index of vertices) {
       uv.setXY(index, (x + uv.getX(index) * w) / 64, 1 - (y + (1 - uv.getY(index)) * h) / 64);
     }
   });
   return geometry;
 }
 
-/** Classic 4px skin atlas, optional rigid elbows/knees and an animated front-face layer. */
+export function updateLimbGeometry(geometry, angle) {
+  if (geometry.userData.bend === angle) return;
+  const position = geometry.getAttribute('position');
+  const rest = geometry.userData.rest ||= position.array.slice();
+  for (let i = 0; i < position.count; i++) position.setXYZ(i, ...deformLimbPoint(rest.subarray(i * 3, i * 3 + 3), angle));
+  position.needsUpdate = true; geometry.computeVertexNormals();
+  geometry.computeBoundingBox(); geometry.computeBoundingSphere(); geometry.userData.bend = angle;
+}
+
+/** Continuous skin surfaces, classic/slim arms and an optional animated face. */
 export class MinecraftCharacter {
   constructor(id, image = createDefaultSkin()) {
     this.id = id;
@@ -28,18 +38,21 @@ export class MinecraftCharacter {
     this.overlayMaterial = new THREE.MeshLambertMaterial({ map: this.texture, alphaTest: 0.5, side: THREE.DoubleSide });
     this.rig = null; this.faceMode = 'skin'; this.setModes('classic', 'skin');
   }
-  setModes(rig = 'classic', faceMode = 'skin') {
-    if (rig !== this.rig) {
-      this.clearGeometry(); this.rig = rig; this.joints = {}; this.parts = rigParts(rig);
+  setModes(rig = 'classic', faceMode = 'skin', model = 'classic') {
+    if (rig !== this.rig || model !== this.model) {
+      this.clearGeometry(); this.rig = rig; this.model = model; this.joints = {}; this.limbMeshes = []; this.parts = rigParts(rig, model);
       for (const part of this.parts) {
         const group = new THREE.Group(); group.position.set(...part.pivot);
         (this.joints[part.parent] || this.root).add(group);
         group.name = this.id + '-' + part.name; this.joints[part.name] = group;
-        for (const [origin, grow, material] of [[part.baseUV, 0, this.baseMaterial], [part.overlayUV, part.expansion, this.overlayMaterial]]) {
-          const mesh = new THREE.Mesh(skinBox(part, origin, grow), material);
-          mesh.position.set(...part.center); mesh.castShadow = true; mesh.receiveShadow = true;
+        if (part.slice === 'lower') continue; // Control transform only; no internal joint caps.
+        const surface = part.slice ? skinParts(model).find(p => p.name === part.name) : part;
+        for (const [origin, grow, material] of [[surface.baseUV, 0, this.baseMaterial], [surface.overlayUV, surface.expansion, this.overlayMaterial]]) {
+          const mesh = new THREE.Mesh(skinBox(surface, origin, grow, part.slice ? LIMB_SEGMENTS : 1), material);
+          mesh.position.set(...surface.center); mesh.castShadow = true; mesh.receiveShadow = true;
           mesh.userData = { actorId: this.id, joint: part.limb || part.name, part: part.name, base: grow === 0 };
           group.add(mesh);
+          if (part.slice) this.limbMeshes.push(mesh);
         }
       }
     }
@@ -94,6 +107,10 @@ export class MinecraftCharacter {
     for (const axis of AXES) this.root.position[axis] = pose['position.' + axis];
     this.root.rotation.y = pose['rotation.y'];
     for (const part of this.parts) this.joints[part.name].rotation.set(...partAngles(part, pose));
+    for (const mesh of this.limbMeshes) {
+      const limb = mesh.userData.joint;
+      updateLimbGeometry(mesh.geometry, (pose[limb + '.bend'] || 0) * (limb.includes('Arm') ? -1 : 1));
+    }
     this.updateFace(pose);
   }
   setSkin(image) {

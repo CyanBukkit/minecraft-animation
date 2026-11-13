@@ -49,7 +49,7 @@ build 从代码更新 project.json；preview 从指定入口载入工作室；�
 
 | 字段 | 值与行为 |
 | --- | --- |
-| actor.rig | classic / articulated；弯曲模式为四肢上下两段，共 10 个关节。经典模式忽略弯曲值，但不会删帧 |
+| actor.rig | classic / articulated；弯曲模式为10个控制关节，四肢各一张连续变形网格，外侧像素拉伸、内侧压缩。经典模式忽略弯曲值，但不会删帧 |
 | actor.faceMode | skin / animated；保留原皮肤面部或覆盖为动画眼睛、眉毛和嘴部 |
 | actor.skinMode | default / imported；切默认不删除 actor.skin 中的已导入 PNG |
 | project.textureMode | default / imported；切默认不删除 resourcePack |
@@ -90,8 +90,27 @@ export default ({ Composition, Actor, Camera, World }) => Composition({
 
 ### 边界与验证
 
-这是刚性双段肘膝，不是软体/IK/手指骨架；仍使用经典 4 像素宽臂，不支持 slim 3 像素臂。动画脸是可关闭的皮肤正面覆盖层，并非自动识别任意皮肤眼睛位置；使用皮肤脸可完全保留原始图案。帽层正面仅保留顶部纹理，避免原眼睛重复覆盖。
+肘膝采用连续表面变形，关节带外侧拉伸、内侧压缩，没有内封口或分离的上下肢网格；不是物理软体/IK/手指。支持 skinModel: classic（默认4像素宽臂）及 slim（3像素细臂）。动画脸是可关闭的皮肤正面覆盖层，并非自动识别任意皮肤眼睛位置；使用皮肤脸可完全保留原始图案。帽层正面仅保留顶部纹理，避免原眼睛重复覆盖。
 
-碰撞检测使用同一分段变换：经典检查手臂，articulated 检查四肢与躯干、其他角色、显式方块。允许同一肢体上下段连接重叠；大腿与躯干只豁免距髋部 0.177 格的连接区，远端大腿/小腿仍检查，世界/其他角色检查完整盒。外层皮肤、工具、道具不在范围内；不包含营地、高度图，也不是连续碰撞证明。改变姿势后必须重新 check，预设不保证任意站位、地面和障碍下无穿透。
+碰撞检测使用覆盖全部变形基体顶点的保守分段包围盒（不是曲面精确相交，可能提早报警）：经典检查手臂，articulated 检查四肢与躯干、其他角色、显式方块。允许同一肢体上下段连接重叠；大腿与躯干只豁免距髋部 0.177 格的连接区，远端大腿/小腿仍检查，世界/其他角色检查完整盒。外层皮肤、工具、道具不在范围内；不包含营地、高度图，也不是连续碰撞证明。改变姿势后必须重新 check，预设不保证任意站位、地面和障碍下无穿透。
 
 复现验证：先 npm run build，再 node --test test/character-controls.test.js、npm run test:web、node scripts/verify-character.mjs。专项报告在 artifacts/rig-002/report.json，包含实际网格、UI、贴图、镜头、GPU 资源和视频解码证据。
+
+## 官方玩家皮肤接口
+
+SDK导出 fetchPlayerSkin 与 PlayerSkinError。完整可运行代码、错误码、参数与限制见 [技能教程](skills/minecraft-animation/SKILL.md#按-java-玩家-id-获取官方皮肤)。scene.mjs 可使用 async 默认导出函数，等待查询后把返回 skin、model 分别赋给 Actor.skin、Actor.skinModel。网页也可在“模型与皮肤”直接输入玩家名/UUID换装。
+
+请求只发往 Mojang/Minecraft 官方公开服务，无需登录微软账号。它既不是账号拥有者认证，也不是 Xbox/Bedrock 查询。没有公开自定义皮肤会报错，不会假装已经获取；玩家不存在、限流、超时都保留当前角色皮肤。已保存JSON内含PNG，离线重新打开不访问外网。
+
+### HTTP与部署
+
+- GET /api/skin?id=Notch：成功返回 {id,name,model,url,skin} JSON；失败返回 {error:{code,message}}，状态为400（非法ID）、404（玩家/自定义皮肤不存在）、429（繁忙）、504（超时）或502（上游异常）。
+- src/node/skin-handler.js 的 createSkinHandler() 为 Node/Connect 兼容处理器；已接入 Vite dev、Vite preview、CLI preview。只允许GET、不接受任意URL、不发送CORS头，拒绝跨源Origin。每进程最多8个并发查询，同ID去重、成功响应缓存60秒且最多64项。
+- 纯静态托管dist不运行Node代码，需在自己的同源服务部署该处理器或反向代理；不要把微软token放入前端，也不自动退回不可信代理。
+- SDK options：endpoint（Node默认null直连，浏览器默认/api/skin）、signal、timeoutMs（默认15000，1–60000）、fetch（供测试注入）。浏览器直连官方端点可能受CORS限制。
+
+### 协议依据与复现
+
+2026-11-13已实测官方 [玩家名端点](https://api.mojang.com/users/profiles/minecraft/Notch)、[会话资料端点](https://sessionserver.mojang.com/session/minecraft/profile/069a79f444e94726a5befca90e38aaf5) 与返回的 textures.minecraft.net PNG。这些是公开服务的实际响应，不是微软账号授权接口；不承诺上游永久可用。Three.js [BoxGeometry](https://threejs.org/docs/pages/BoxGeometry.html) / [BufferGeometry](https://threejs.org/docs/pages/BufferGeometry.html) 文档用于分段、UV、法线及包围体更新。
+
+专项：node scripts/verify-stretch-skin.mjs，报告 artifacts/stretch-skin-004/report.json；生成真实皮肤/棋盘拉伸对比图与2秒48帧视频及其解码帧。node --test test/limb-stretch.test.js 检查宽/细臂、基体/外层、各关键角度无开放边/退化面、UV稳定、外拉内压和碰撞覆盖。

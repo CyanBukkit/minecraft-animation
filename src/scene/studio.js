@@ -133,7 +133,7 @@ export class Studio {
         const character = new MinecraftCharacter(actor.id); this.characters.set(actor.id, character); this.scene.add(character.root);
       }
       const character = this.characters.get(actor.id);
-      character.setModes(actor.rig, actor.faceMode);
+      character.setModes(actor.rig, actor.faceMode, actor.skinMode === 'default' || !actor.skin ? 'classic' : actor.skinModel);
       const source = actor.skinMode === 'default' ? null : actor.skin;
       if (this.skinSources.get(actor.id) !== source) {
         const generation = (this.skinGeneration.get(actor.id) || 0) + 1;

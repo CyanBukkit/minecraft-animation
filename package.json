@@ -1,6 +1,6 @@
 {
   "name": "minecraft-animation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "彩贝方映 — AI 可编程的 Minecraft Web 动画工作室与 Node.js 渲染 CLI",
   "main": "./src/caibei/index.js",
   "scripts": {

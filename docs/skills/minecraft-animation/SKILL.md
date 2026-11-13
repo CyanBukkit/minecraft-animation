@@ -35,13 +35,42 @@ description: 使用彩贝方映 Node.js CLI 与 Web 工作室，把用户的 Min
 
 ## 弯曲、表情和特写
 
-- actor.rig: classic（默认）/ articulated（上下两段，共10关节）；切换模式不删除帧。新增 crouch/sit/punch/kick 预设或 clips 同名片段需显式 articulated。
-- 四个 .bend 通道：leftArm、rightArm、leftLeg、rightLeg；0–3π/4 弧度。肘向前、膝向后，仍为经典4像素臂。
+- actor.rig: classic（默认）/ articulated（10个控制关节，四肢各一张连续网格而非两个封口方块）；切换模式不删除帧。新增 crouch/sit/punch/kick 预设或 clips 同名片段需显式 articulated。
+- 四个 .bend 通道：leftArm、rightArm、leftLeg、rightLeg；0–3π/4 弧度。肘向前、膝向后；外侧模型与皮肤像素一起拉伸，内侧压缩；UV保持不变。
 - actor.faceMode: skin（原图）/ animated（动画覆盖层）。face.leftBlink/rightBlink/mouthOpen 为0–1；face.lookX/lookY/smile/brow 为-1–1。全部使用普通关键帧，可与肢体混合；完整姿态33通道。
 - project.closeUp: null 或 {actor: '角色ID', framing: 'face'|'eyes', distance: 0.5–3}。绑定头部随动，动画镜头与 render 均优先于 cameraTracks；关闭后恢复原镜头。Composition 使用 camera.closeUp。
 - actor.skinMode: default/imported（默认 imported）；project.textureMode: default/imported（默认 imported）。导入的 PNG 皮肤保存在 actor.skin，方块贴图在 resourcePack.textures；切默认不得清空已导入数据。支持标准/等比例高清 Minecraft PNG 皮肤及本机版本 jar/资源包 ZIP 路径。不得声称提供完整资源包渲染或自动下载材质。
-- 共享几何调用 actorBoxes(pose, actor.rig)，默认仍classic。rigParts(mode)、BEND_CHANNELS、FACE_CHANNELS、MAX_BEND、EXPRESSIONS 可由SDK取得。
-- articulated 检查四肢：同肢体上下段关节连接重叠豁免；大腿/躯干仅豁免近髋0.177格连接区，远端大腿和小腿仍检测。对世界和其他角色不裁掉盒体。每次改姿势仍须 check，不假设预设自动避障。
-- 不支持 IK、软体、手指或 slim 3像素臂。动画脸不自动识别每种皮肤的五官，原皮肤模式保持原图。
+- 共享几何调用 actorBoxes(pose, actor.rig, actor.skinMode === 'default' || !actor.skin ? 'classic' : actor.skinModel)，默认仍classic。rigParts(mode, skinModel)、BEND_CHANNELS、FACE_CHANNELS、MAX_BEND、EXPRESSIONS 可由SDK取得。
+- articulated 以覆盖所有变形基体顶点的保守分段包围盒检查四肢（可能早于实际接触报警）：同肢体连接重叠豁免；大腿/躯干仅豁免近髋0.177格连接区，远端大腿和小腿仍检测。对世界和其他角色不裁掉盒体。每次改姿势仍须 check，不假设预设自动避障。
+- 支持 skinModel: classic（4像素臂，默认）/ slim（3像素臂）；不支持 IK、物理软体或手指。动画脸不自动识别每种皮肤的五官，原皮肤模式保持原图。
 
 弯曲和表情至少检查0、最大弯曲、动作中间时刻、保存重载与实际视频；用面部/眼睛特写验证眨眼与注视，不以写入数值或编译成功替代画面验证。
+
+## 按 Java 玩家 ID 获取官方皮肤
+
+- 使用 fetchPlayerSkin(playerNameOrUuid, options?)，返回 Promise<{id,name,model,url,skin}>。skin 为内嵌 PNG data URL；model 为 classic/slim。函数失败抛 PlayerSkinError，code 可区分 INVALID_ID、NOT_FOUND、NO_SKIN、RATE_LIMITED、TIMEOUT、ABORTED、NETWORK_ERROR、INVALID_RESPONSE、INVALID_SKIN。禁止失败后假装已换装。
+- ID 是 Minecraft Java 玩家名或 UUID，不是微软邮箱、密码或 Xbox Gamertag。只查询官方公开资料，不验证用户拥有该账号，不要求 token，不支持 Bedrock 查询；没有公开自定义皮肤时报 NO_SKIN，明确改用默认皮肤，而不是伪造获取成功。
+- Node 默认直接访问 api.mojang.com → sessionserver.mojang.com → textures.minecraft.net；HTTPS、请求总超时默认15秒，拒绝任意远程纹理地址与重定向。可传 signal、timeoutMs（1–60000）取消/限时；不要向用户索要登录凭据。
+- 浏览器默认使用同源 GET /api/skin?id=...；源码 dev、Vite preview、CLI preview 已内置。纯静态托管 dist 不包含服务端，必须部署/转发 createSkinHandler 到同源接口；不要添加未知第三方代理解决CORS。
+- 网页在“模型与皮肤”输入ID，点击“获取并换上皮肤”。成功才写入目标角色，自动选择臂型；失败保留旧皮肤。普通PNG导入可手选臂型。支持64×64、等比例高清导入和64×32旧版（渲染时补全镜像左肢）。
+- 项目保存内嵌图像与skinModel，重载/离线出片无需重新查询。构建含fetchPlayerSkin的scene.mjs会再次请求网络，离线时以已经生成的project.json作为render输入。
+
+~~~js
+export default async ({ Composition, Actor, Camera, World, fetchPlayerSkin }) => {
+  const player = await fetchPlayerSkin('Notch'); // 替换成用户提供的Java玩家名/UUID
+  return Composition({
+    name: '官方皮肤与连续弯曲', duration: 2, fps: 24, world: World.empty(),
+    actors: [Actor({ id: 'player', name: player.name, position: [0, 0, 0],
+      skin: player.skin, skinModel: player.model, skinMode: 'imported', rig: 'articulated',
+      keys: ['leftArm', 'rightArm', 'leftLeg', 'rightLeg'].flatMap(limb => [
+        { time: 0, channel: limb + '.bend', value: 0 },
+        { time: 1, channel: limb + '.bend', value: Math.PI / 2 },
+        { time: 2, channel: limb + '.bend', value: 0 },
+      ]),
+    })],
+    camera: Camera({ keys: [{ time: 0, position: [3, 2, -4], target: [0, 1, 0], fov: 32 }] }),
+  });
+};
+~~~
+
+验收必须包含真实查询和换装、classic/slim元数据、旧版图像、输入/不存在/限流/超时失败不改旧图、保存重载以及0/90/135度的连续外侧像素；禁止仅以下载PNG或写入URL宣称已换装。源码复现：node --test test/limb-stretch.test.js test/player-skin.test.js；npm run build；npm run test:web；node scripts/verify-stretch-skin.mjs（最后一项需联网）。

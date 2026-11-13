@@ -91,8 +91,25 @@ export async function loadSkin(source) {
   const image = new Image();
   image.src = source;
   await image.decode();
+  if (image.width === 64 && image.height === 32) {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(image, 0, 0);
+    // Legacy skins contain only the right arm/leg. Mirror their six faces.
+    for (const [from, to] of [[[0, 16], [16, 48]], [[40, 16], [32, 48]]]) {
+      const sourceRects = skinRects(...from, 4, 12, 4), targetRects = skinRects(...to, 4, 12, 4);
+      for (let face = 0; face < 6; face++) {
+        const [x, y, w, h] = targetRects[face];
+        ctx.save(); ctx.translate(x + w, y); ctx.scale(-1, 1);
+        ctx.drawImage(image, ...sourceRects[face === 0 ? 1 : face === 1 ? 0 : face], 0, 0, w, h); ctx.restore();
+      }
+    }
+    // Old opaque hat regions denote "no hat"; do not paint a solid box over the head.
+    const hat = ctx.getImageData(32, 0, 32, 16).data;
+    if (hat.every((v, i) => i % 4 !== 3 || v === 255)) ctx.clearRect(32, 0, 32, 16);
+    return canvas;
+  }
   if (image.width !== image.height || image.width < 64 || image.width > 1024 || image.width % 64 !== 0) {
-    throw new Error('请使用 64×64 或等比例高清的经典宽臂 PNG 皮肤（最大 1024×1024）');
+    throw new Error('请使用64×64或等比例高清 PNG（最大1024×1024），或旧版64×32皮肤');
   }
   return image;
 }

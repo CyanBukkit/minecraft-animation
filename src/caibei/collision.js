@@ -72,7 +72,7 @@ export function checkProjectCollisions(input, { substeps = 4 } = {}) {
     if (collisions.length < MAX_REPORTS) collisions.push({ time, actor, parts: [first.name, second.name], ...(otherActor ? { otherActor } : {}) });
   };
   for (const time of [...times].sort((a, b) => a - b)) {
-    const actors = project.actors.map(actor => ({ id: actor.id, rig: actor.rig, boxes: actorBoxes(sampleActor(actor, time), actor.rig) }));
+    const actors = project.actors.map(actor => ({ id: actor.id, rig: actor.rig, boxes: actorBoxes(sampleActor(actor, time), actor.rig, actor.skinMode === 'default' || !actor.skin ? 'classic' : actor.skinModel) }));
     for (let actorIndex = 0; actorIndex < actors.length; actorIndex++) {
       const actor = actors[actorIndex];
       for (let i = 0; i < actor.boxes.length; i++) {
@@ -97,7 +97,7 @@ export function checkProjectCollisions(input, { substeps = 4 } = {}) {
   return {
     passed: collisionCount === 0 && unsupported.length === 0, complete: unsupported.length === 0,
     checkedSamples: times.size, substeps, collisionCount, collisions, truncated: collisionCount > collisions.length, unsupported,
-    scope: '经典手臂 / 弯曲模式四肢基础立方体与身体、其他角色、显式方块；同肢体上下段和大腿近髋 0.177 格连接区除外；接触容差 0.000001 格',
-    limitations: ['不检查透明皮肤外层、手持工具或道具网格', '按帧及子帧离散采样，不是任意连续时间的无碰撞证明'],
+    scope: '经典手臂 / 连续弯曲四肢基体的保守分段包围盒与身体、其他角色、显式方块；同肢体和大腿近髋 0.177 格连接区除外；接触容差 0.000001 格',
+    limitations: ['变形包围盒包含所有基体顶点，可能比实际曲面更早报告碰撞', '不检查透明皮肤外层、手持工具或道具网格', '按帧及子帧离散采样，不是任意连续时间的无碰撞证明'],
   };
 }

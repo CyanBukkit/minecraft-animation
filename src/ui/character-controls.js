@@ -3,6 +3,7 @@ const $ = selector => document.querySelector(selector);
 
 export function refreshCharacterControls(project, actor) {
   $('#rig-mode').value = actor.rig; $('#face-mode').value = actor.faceMode; $('#skin-mode').value = actor.skinMode;
+  $('#skin-model').value = actor.skinModel || 'classic';
   $('#rig-label').textContent = actor.rig === 'articulated' ? '弯曲方块人 · 10 关节' : '经典方块人 · 6 关节';
   $('#texture-mode').value = project.textureMode;
   const target = $('#closeup-target'); target.replaceChildren();
@@ -42,7 +43,7 @@ export function bindCharacterControls({ getProject, selectedActor, remember, com
   for (const [key, expression] of Object.entries(EXPRESSIONS)) {
     const option = document.createElement('option'); option.value = key; option.textContent = expression.label; $('#expression').append(option);
   }
-  for (const [id, field] of [['rig-mode', 'rig'], ['face-mode', 'faceMode'], ['skin-mode', 'skinMode']]) {
+  for (const [id, field] of [['rig-mode', 'rig'], ['face-mode', 'faceMode'], ['skin-mode', 'skinMode'], ['skin-model', 'skinModel']]) {
     $('#' + id).onchange = async event => {
       remember(); selectedActor()[field] = event.target.value; commit(); refresh();
       try { await sync(); } catch (error) { toast(error.message); }

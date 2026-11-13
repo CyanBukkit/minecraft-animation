@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { PACKAGE_ROOT } from './project.js';
 import { serializeProject } from '../core/project.js';
+import { createSkinHandler } from './skin-handler.js';
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
 
@@ -10,6 +11,7 @@ export async function startPreviewServer(project, { port = 0, root = path.join(P
   const base = await realpath(root).catch(() => { throw new Error('网页构建不存在，请在源码仓库先运行 npm run build'); });
   await stat(path.join(base, 'index.html')).catch(() => { throw new Error('网页构建不完整，缺少 index.html'); });
   const data = serializeProject(project);
+  const skinHandler = createSkinHandler();
   const server = createServer(async (req, res) => {
     try {
       if (!/^127\.0\.0\.1:\d+$/.test(req.headers.host || '')) { res.writeHead(403).end(); return; }
@@ -17,6 +19,7 @@ export async function startPreviewServer(project, { port = 0, root = path.join(P
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'no-store');
       const url = new URL(req.url, 'http://127.0.0.1');
+      if (url.pathname === '/api/skin') { await skinHandler(req, res); return; }
       if (url.pathname === '/api/project') {
         res.setHeader('Content-Type', MIME['.json']);
         res.end(req.method === 'HEAD' ? undefined : data); return;

@@ -29,3 +29,4 @@ export {
 } from './trap/index.js';
 
 export { BEND_CHANNELS, FACE_CHANNELS, EXPRESSIONS, MAX_BEND } from '../core/character-controls.js';
+export { fetchPlayerSkin, PlayerSkinError } from './player-skin.js';

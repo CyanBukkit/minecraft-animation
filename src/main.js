@@ -5,7 +5,7 @@ import { createDefaultSkin, loadBlockImage, loadSkin } from './scene/textures.js
 import { Timeline, CHANNELS, CAMERA_CHANNELS, AXES, PRESETS, sampleActor, upsertKey, clamp } from './core/animation.js';
 import { createProject, createActor, parseProject, serializeProject, validateProject, History, MAX_PROJECT_BYTES, BLOCK_KINDS } from './core/project.js';
 import { startRecording, getRecordingType } from './core/recording.js';
-import { compileComposition, EFFECT_PRESETS, getBuiltinDefaultPack, loadPackFromFiles, BUILTIN_PACK_NAME } from './caibei/index.js';
+import { compileComposition, EFFECT_PRESETS, getBuiltinDefaultPack, loadPackFromFiles, BUILTIN_PACK_NAME, fetchPlayerSkin } from './caibei/index.js';
 import { groveGreeting } from './demo/grove-greeting.js';
 import { hytLobbyWalk } from './demo/hyt-lobby-walk.js';
 import { bindStructureImport } from './ui/import-dialog.js';
@@ -369,6 +369,21 @@ function bindUi() {
     catch (error) { toast(error.message); } finally { event.target.value = ''; }
   };
   $('#import-skin').onclick = () => $('#skin-file').click();
+  $('#player-skin-form').onsubmit = async event => {
+    event.preventDefault();
+    const button = $('#fetch-player-skin'); if (button.disabled) return;
+    const actor = selectedActor(); const originalSkin = actor.skin;
+    button.disabled = true; $('#player-skin-status').textContent = '正在获取官方皮肤…';
+    try {
+      const result = await fetchPlayerSkin($('#player-skin-id').value);
+      await loadSkin(result.skin);
+      if (!project.actors.includes(actor) || actor.skin !== originalSkin) throw new Error('角色或皮肤已改变，请重新获取');
+      remember(); actor.skin = result.skin; actor.skinModel = result.model; actor.skinMode = 'imported';
+      await studio.syncActors(project.actors, toast); refreshInspector(); commit();
+      $('#player-skin-status').textContent = '已应用 ' + result.name + ' 的' + (result.model === 'slim' ? '细臂' : '宽臂') + '皮肤';
+    } catch (error) { $('#player-skin-status').textContent = error.message; }
+    finally { button.disabled = false; }
+  };
   $('#skin-file').onchange = async event => {
     const file = event.target.files[0]; if (!file) return;
     const actorId = selectedId;

@@ -6,7 +6,7 @@ export const PROJECT_VERSION = 1;
 export const MAX_PROJECT_BYTES = 12 * 1024 * 1024;
 export const BLOCK_KINDS = ['grass', 'dirt', 'stone', 'wood', 'bark', 'leaf', 'sand', 'roof', 'path', 'water', 'glass', 'glow'];
 export function createActor(id = 'actor-1', name = '方块旅人') {
-  return { id, name, position: [-3.2, 0.5, 3], yaw: 0, preset: 'story', skin: null, rig: 'classic', faceMode: 'skin', skinMode: 'imported', tracks: {}, clips: [] };
+  return { id, name, position: [-3.2, 0.5, 3], yaw: 0, preset: 'story', skin: null, skinModel: 'classic', rig: 'classic', faceMode: 'skin', skinMode: 'imported', tracks: {}, clips: [] };
 }
 export function createProject() {
   return {
@@ -160,6 +160,7 @@ export function validateProject(data) {
       rig: mode(actor.rig, 'classic', ['classic', 'articulated']),
       faceMode: mode(actor.faceMode, 'skin', ['skin', 'animated']),
       skinMode: mode(actor.skinMode, 'imported', ['default', 'imported']),
+      skinModel: mode(actor.skinModel, 'classic', ['classic', 'slim']),
       tracks: validateTracks(actor.tracks, CHANNELS, data.duration),
       clips: validateClips(actor.clips, data.duration),
     };

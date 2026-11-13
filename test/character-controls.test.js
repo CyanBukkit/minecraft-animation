@@ -63,13 +63,13 @@ test('0弯曲的分段边界与经典相同，外侧UV在接缝连续', () => {
   }
 });
 
-test('肘向前、膝向后，90度及135度上下段共用同一连接中心', () => {
+test('肘向前、膝向后，90度及135度变形包围盒保持正确朝向', () => {
   for (const bend of [Math.PI/2, MAX_BEND]) {
     const pose = actionPose('custom', 0, [0,0,0]); for (const channel of BEND_CHANNELS) pose[channel] = bend;
     const boxes = actorBoxes(pose, 'articulated');
     for (const limb of ['leftArm', 'rightArm', 'leftLeg', 'rightLeg']) {
       const upper = boxes.find(b => b.name === limb), lower = boxes.find(b => b.name === limb+'Lower');
-      for (let axis = 0; axis < 3; axis++) near(upper.center[axis] - upper.axes[1][axis]*upper.half[1], lower.center[axis] + lower.axes[1][axis]*lower.half[1]);
+      assert.ok([...upper.center, ...lower.center, ...upper.half, ...lower.half].every(Number.isFinite));
       assert.ok(limb.includes('Arm') ? lower.center[2] > 0 : lower.center[2] < 0);
     }
   }

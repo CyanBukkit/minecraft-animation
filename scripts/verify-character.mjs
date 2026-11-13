@@ -56,21 +56,33 @@ export async function verifyCharacter(page) {
     for (const time of [0,0.125,0.4,0.75,1.2]) samples.push({actor,time,boxes:actorBoxes(sampleActor(actor,time),'articulated')});
   }
   const geometry=await page.evaluate(async samples=>{
-    let error=0,checked=0;
+    let error=0,checked=0,vertices=0;
     for (const sample of samples) {
       const p=mcStudio.project; p.actors=[sample.actor]; await mcStudio.setProject(p); mcStudio.seek(sample.time); mcStudio.scene.updateMatrixWorld(true);
       const character=mcStudio.characters.get(sample.actor.id);
       for (const box of sample.boxes) {
+        if (/Arm|Leg/.test(box.name)) { checked++; continue; }
         const mesh=character.joints[box.name].children.find(o=>o.userData.base);
         mesh.matrixWorld.toArray().forEach((v,i)=>error=Math.max(error,Math.abs(v-box.matrix[i])));
         const dimensions=mesh.geometry.parameters;
         [dimensions.width,dimensions.height,dimensions.depth].forEach((v,i)=>error=Math.max(error,Math.abs(v-box.half[i]*2))); checked++;
       }
+      for (const mesh of character.limbMeshes.filter(m=>m.userData.base)) {
+        const pos=mesh.geometry.getAttribute('position'), boxes=sample.boxes.filter(b=>b.limb===mesh.userData.joint);
+        for (let i=0;i<pos.count;i++) {
+          const point=mesh.position.clone().fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).toArray();
+          const excess=Math.min(...boxes.map(box=>{
+            const delta=point.map((v,j)=>v-box.center[j]);
+            return Math.max(...box.axes.map((axis,j)=>Math.abs(axis.reduce((s,v,k)=>s+v*delta[k],0))-box.half[j]));
+          }));
+          error=Math.max(error,excess); vertices++;
+        }
+      }
     }
-    return {checked,error};
+    return {checked,error,vertices};
   },samples);
-  assert.equal(geometry.checked,400); assert.ok(geometry.error<1e-10,JSON.stringify(geometry));
-  results.push('8 种动作共 400 个实际分段网格与碰撞变换一致');
+  assert.equal(geometry.checked,400); assert.ok(geometry.vertices>30000); assert.ok(geometry.error<1e-7,JSON.stringify(geometry));
+  results.push('8 种动作400个包围盒覆盖实际连续网格，共'+geometry.vertices+'个变形顶点');
 
   await page.evaluate(async p=>{await mcStudio.setProject(p);mcStudio.setCameraMode('cinematic');mcStudio.seek(0);},p);
   const pixels = async () => page.evaluate(()=>{

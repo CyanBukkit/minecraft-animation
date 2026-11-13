@@ -35,6 +35,7 @@ export function compileComposition(definition) {
     yaw: actor.yaw ?? 0,
     preset: actor.preset || 'custom',
     skin: actor.skin ?? null,
+    skinModel: actor.skinModel ?? 'classic',
     rig: actor.rig ?? 'classic',
     faceMode: actor.faceMode ?? 'skin',
     skinMode: actor.skinMode ?? 'imported',

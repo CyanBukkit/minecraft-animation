@@ -25,7 +25,7 @@
 
 登录有此包维护权限的 npm 账号，打开包页面 → Settings → Trusted Publisher → GitHub Actions，按下表填写并保存。登录和2FA在你自己的浏览器中完成；无需把密码、验证码或token发给协作者。
 
-**本次只提交源码和发布准备，不发布0.1.0、不创建tag或Release。** npm已发布版本不能覆盖。配置成功后，先按下节递增版本并验证，再发布对应GitHub Release。只有npm上的新版本实际可查，才算发布成功。
+**0.1.0阶段只完成源码和发布准备；0.2.0按正式Release流程发布。** npm已发布版本不能覆盖。配置成功后，先按下节递增版本并验证，再发布对应GitHub Release。只有npm上的新版本实际可查，才算发布成功。
 
 ## 一次性绑定 npm 可信发布
 
@@ -51,28 +51,28 @@
 
 ## 下次发版
 
-先将需要发布的修改提交，再更新版本（示例从 0.1.0 升到 0.1.1）：
+先将需要发布的修改提交，再更新版本（示例从 0.1.0 升到 0.2.0）：
 
 ~~~bash
-npm version patch --no-git-tag-version
+npm version 0.2.0 --no-git-tag-version
 npm run skill:pack
 npm test
 npm run build
 npm run test:web
 npm run test:package
 git add package.json package-lock.json docs/downloads/minecraft-animation.skill
-git commit -m "chore: release 0.1.1"
-git tag v0.1.1
-git push origin main v0.1.1
+git commit -m "chore: release 0.2.0"
+git tag v0.2.0
+git push origin main v0.2.0
 ~~~
 
-随后在 GitHub 仓库 **Releases → Draft a new release** 选择 `v0.1.1`，填写说明并点击 **Publish release**，不要勾选 prerelease。**只推送 tag 不会上传 npm**，必须发布 Release。
+随后在 GitHub 仓库 **Releases → Draft a new release** 选择 `v0.2.0`，填写说明并点击 **Publish release**，不要勾选 prerelease。**只推送 tag 不会上传 npm**，必须发布 Release。
 
 `Publish to npm` 会先验证，成功后上传 npm。核对 Actions 的 publish job 成功，并检查：
 
 ~~~bash
 npm view minecraft-animation version --registry=https://registry.npmjs.org
-npx --yes minecraft-animation@0.1.1 --version
+npx --yes minecraft-animation@0.2.0 --version
 ~~~
 
 示例版本号需要随实际版本同步调整。npm 不允许覆盖已经发布的相同版本，因此不要重新发布 `0.1.0`。不要用跳过测试、强制修改 tag 或删除保护条件的方式绕过失败。
