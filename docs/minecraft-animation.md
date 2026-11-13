@@ -42,3 +42,56 @@ build 从代码更新 project.json；preview 从指定入口载入工作室；�
 - [MDN captureStream](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream)：实时画布捕获，原网页录制继续保留；CLI 离线输出不以墙钟录制冒充精确帧渲染。
 
 初版资料核对日期：2026-11-04；2026-11-13 已通过 npm Registry 确认 `minecraft-animation@0.1.0` 正式发布。后续 GitHub Actions 发布方式见 [发布指南](npm-publish.md)。
+
+## 弯曲、表情、特写与贴图切换
+
+本地新版支持以下字段（旧 0.1.0 项目缺少字段时仍采用经典直肢与原皮肤脸）：
+
+| 字段 | 值与行为 |
+| --- | --- |
+| actor.rig | classic / articulated；弯曲模式为四肢上下两段，共 10 个关节。经典模式忽略弯曲值，但不会删帧 |
+| actor.faceMode | skin / animated；保留原皮肤面部或覆盖为动画眼睛、眉毛和嘴部 |
+| actor.skinMode | default / imported；切默认不删除 actor.skin 中的已导入 PNG |
+| project.textureMode | default / imported；切默认不删除 resourcePack |
+| project.closeUp | null 或 {actor, framing: 'face' / 'eyes', distance: 0.5–3}；绑定角色 ID，随头部变换，在动画镜头和出片中优先于 cameraTracks |
+
+### 时间轴操作
+
+1. 在“模型与皮肤”选“弯曲肘膝”，分别调左右肘、左右膝。滑杆角度为 0–135°，数据用弧度。
+2. 在“眼睛与表情”选动画模式。可控制左右闭眼、注视 X/Y、张嘴、微笑、眉毛，或将开心、生气、惊讶、闭眼、眨右眼写入当前帧。
+3. 所有滑杆在当前帧写入关键帧；录制完整姿态包含 33 个通道。表情标记归入头部/身体轨，肘膝标记归入四肢轨；支持删除、撤销、重做与项目保存。
+4. 新增下蹲、坐姿、出拳、踢腿动作。点击这些预设会启用弯曲模式；代码编排请显式设置 rig: 'articulated'。已有关键帧仍覆盖预设，必要时删除对应帧。
+5. “跟随特写”选目标、面部/眼部、距离后进入动画镜头。关闭特写恢复 cameraTracks；删除目标会清除特写。自由视角和角色跟随视角仍可独立切换。
+6. 导入标准 Minecraft PNG 皮肤（含等比例高清），或用“导入资源包/版本 jar”读取 assets/minecraft/textures/block/。皮肤、方块资源都有默认/导入开关，保存后仍可切回。方块也支持单张 PNG。
+
+### SDK 通道与示例
+
+- leftArm.bend / rightArm.bend / leftLeg.bend / rightLeg.bend：0–3π/4；肘朝前，膝朝后。
+- face.leftBlink / face.rightBlink / face.mouthOpen：0–1。
+- face.lookX / face.lookY / face.smile / face.brow：-1–1；正 lookY 朝上。左右眼按角色自身左右命名。
+- 导出 BEND_CHANNELS、FACE_CHANNELS、MAX_BEND、EXPRESSIONS、rigParts(mode)。actorBoxes(pose, mode) 的第二参数必须与角色 rig 一致。
+- Composition 的 actors 接受 rig/faceMode/skinMode；camera.closeUp 与 project.closeUp 同结构。clips.crouch/sit/punch/kick 可用于 Sequence。
+
+~~~js
+export default ({ Composition, Actor, Camera, World }) => Composition({
+  name: '表情与弯曲演示', duration: 2, fps: 24,
+  world: World.empty(),
+  actors: [Actor({ id: 'actor', position: [0, 0, 0],
+    rig: 'articulated', faceMode: 'animated', preset: 'punch',
+    keys: [
+      { time: 0, channel: 'face.leftBlink', value: 0 },
+      { time: 1, channel: 'face.leftBlink', value: 1 },
+      { time: 2, channel: 'face.leftBlink', value: 0 },
+    ],
+  })],
+  camera: Camera({ closeUp: { actor: 'actor', framing: 'face', distance: 1.2 } }),
+});
+~~~
+
+### 边界与验证
+
+这是刚性双段肘膝，不是软体/IK/手指骨架；仍使用经典 4 像素宽臂，不支持 slim 3 像素臂。动画脸是可关闭的皮肤正面覆盖层，并非自动识别任意皮肤眼睛位置；使用皮肤脸可完全保留原始图案。帽层正面仅保留顶部纹理，避免原眼睛重复覆盖。
+
+碰撞检测使用同一分段变换：经典检查手臂，articulated 检查四肢与躯干、其他角色、显式方块。允许同一肢体上下段连接重叠；大腿与躯干只豁免距髋部 0.177 格的连接区，远端大腿/小腿仍检查，世界/其他角色检查完整盒。外层皮肤、工具、道具不在范围内；不包含营地、高度图，也不是连续碰撞证明。改变姿势后必须重新 check，预设不保证任意站位、地面和障碍下无穿透。
+
+复现验证：先 npm run build，再 node --test test/character-controls.test.js、npm run test:web、node scripts/verify-character.mjs。专项报告在 artifacts/rig-002/report.json，包含实际网格、UI、贴图、镜头、GPU 资源和视频解码证据。

@@ -2,7 +2,7 @@ import { sampleActor } from '../core/animation.js';
 import { actorBoxes } from '../core/rig.js';
 import { validateProject } from '../core/project.js';
 
-const ARMS = new Set(['leftArm', 'rightArm']);
+const isCheckedLimb = (box, rig) => /Arm/.test(box.name) || (rig === 'articulated' && /Leg/.test(box.name));
 const IDENTITY_AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 const CONTACT_EPSILON = 1e-6;
 const MAX_REPORTS = 100;
@@ -22,6 +22,19 @@ export function boxesIntersect(a, b) {
   return true;
 }
 
+
+// A rotated thigh overlaps its hip socket naturally. Exempt only its proximal
+// sqrt(2)*half-width cap when testing the torso; the distal thigh and calf still block.
+function selfIntersect(first, second) {
+  const thigh = first.name === 'body' && /^(left|right)Leg$/.test(second.name) ? second
+    : second.name === 'body' && /^(left|right)Leg$/.test(first.name) ? first : null;
+  if (!thigh) return boxesIntersect(first, second);
+  const trim = Math.SQRT2 * 0.125;
+  const distal = { ...thigh, half: [thigh.half[0], thigh.half[1] - trim / 2, thigh.half[2]],
+    center: thigh.center.map((value, i) => value - thigh.axes[1][i] * trim / 2) };
+  return boxesIntersect(distal, first === thigh ? second : first);
+}
+
 function cells(box) {
   const extent = [0, 1, 2].map(axis => box.half.reduce((sum, value, i) => sum + value * Math.abs(box.axes[i][axis]), 0));
   const min = box.center.map((value, i) => Math.floor(value - extent[i]));
@@ -31,7 +44,7 @@ function cells(box) {
   return result;
 }
 
-/** Checks base rig arms at rendered frames, subframes and authored keys; it is not continuous collision detection. */
+/** Checks classic arms and articulated limbs at rendered frames, subframes and authored keys; it is not continuous collision detection. */
 export function checkProjectCollisions(input, { substeps = 4 } = {}) {
   if (!Number.isInteger(substeps) || substeps < 1 || substeps > 16) throw new Error('碰撞检查 substeps 必须是 1–16 的整数');
   const project = validateProject(input);
@@ -59,23 +72,23 @@ export function checkProjectCollisions(input, { substeps = 4 } = {}) {
     if (collisions.length < MAX_REPORTS) collisions.push({ time, actor, parts: [first.name, second.name], ...(otherActor ? { otherActor } : {}) });
   };
   for (const time of [...times].sort((a, b) => a - b)) {
-    const actors = project.actors.map(actor => ({ id: actor.id, boxes: actorBoxes(sampleActor(actor, time)) }));
+    const actors = project.actors.map(actor => ({ id: actor.id, rig: actor.rig, boxes: actorBoxes(sampleActor(actor, time), actor.rig) }));
     for (let actorIndex = 0; actorIndex < actors.length; actorIndex++) {
       const actor = actors[actorIndex];
       for (let i = 0; i < actor.boxes.length; i++) {
         const first = actor.boxes[i];
         for (let j = i + 1; j < actor.boxes.length; j++) {
           const second = actor.boxes[j];
-          if ((ARMS.has(first.name) || ARMS.has(second.name)) && boxesIntersect(first, second)) record(time, actor.id, first, second);
+          if (first.limb !== second.limb && (isCheckedLimb(first, actor.rig) || isCheckedLimb(second, actor.rig)) && selfIntersect(first, second)) record(time, actor.id, first, second);
         }
-        if (ARMS.has(first.name)) {
+        if (isCheckedLimb(first, actor.rig)) {
           const candidates = new Set(cells(first).flatMap(cell => grid.get(cell) || []));
           for (const second of candidates) if (boxesIntersect(first, second)) record(time, actor.id, first, second);
         }
         for (let otherIndex = actorIndex + 1; otherIndex < actors.length; otherIndex++) {
           const other = actors[otherIndex];
           for (const second of other.boxes) {
-            if ((ARMS.has(first.name) || ARMS.has(second.name)) && boxesIntersect(first, second)) record(time, actor.id, first, second, other.id);
+            if ((isCheckedLimb(first, actor.rig) || isCheckedLimb(second, other.rig)) && boxesIntersect(first, second)) record(time, actor.id, first, second, other.id);
           }
         }
       }
@@ -84,7 +97,7 @@ export function checkProjectCollisions(input, { substeps = 4 } = {}) {
   return {
     passed: collisionCount === 0 && unsupported.length === 0, complete: unsupported.length === 0,
     checkedSamples: times.size, substeps, collisionCount, collisions, truncated: collisionCount > collisions.length, unsupported,
-    scope: '经典宽臂基础立方体的手臂与身体、其他角色、显式世界方块；接触容差 0.000001 格',
+    scope: '经典手臂 / 弯曲模式四肢基础立方体与身体、其他角色、显式方块；同肢体上下段和大腿近髋 0.177 格连接区除外；接触容差 0.000001 格',
     limitations: ['不检查透明皮肤外层、手持工具或道具网格', '按帧及子帧离散采样，不是任意连续时间的无碰撞证明'],
   };
 }

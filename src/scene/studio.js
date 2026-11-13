@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MinecraftCharacter } from './character.js';
 import { createWorld } from './world.js';
 import { sampleActor, sampleTrack } from '../core/animation.js';
-import { loadSkin } from './textures.js';
+import { loadSkin, createDefaultSkin } from './textures.js';
 import { blocksFromHeightmap } from '../caibei/blocks.js';
 import { EffectLayer } from './effects.js';
 
@@ -124,23 +124,46 @@ export class Studio {
   }
   syncActors(actors, onError = () => {}) {
     const ids = new Set(actors.map(actor => actor.id));
-    for (const [id,character] of this.characters) if (!ids.has(id)) { character.dispose(); this.characters.delete(id); this.skinSources.delete(id); this.skinGeneration.delete(id); }
+    for (const [id, character] of this.characters) if (!ids.has(id)) {
+      character.dispose(); this.characters.delete(id); this.skinSources.delete(id); this.skinGeneration.delete(id);
+    }
+    const pending = [];
     for (const actor of actors) {
-      if (!this.characters.has(actor.id)) { const character = new MinecraftCharacter(actor.id); this.characters.set(actor.id,character); this.scene.add(character.root); }
-      if (this.skinSources.get(actor.id) !== actor.skin) {
+      if (!this.characters.has(actor.id)) {
+        const character = new MinecraftCharacter(actor.id); this.characters.set(actor.id, character); this.scene.add(character.root);
+      }
+      const character = this.characters.get(actor.id);
+      character.setModes(actor.rig, actor.faceMode);
+      const source = actor.skinMode === 'default' ? null : actor.skin;
+      if (this.skinSources.get(actor.id) !== source) {
         const generation = (this.skinGeneration.get(actor.id) || 0) + 1;
-        this.skinGeneration.set(actor.id,generation); this.skinSources.set(actor.id,actor.skin);
-        const character = this.characters.get(actor.id);
-        if (actor.skin) loadSkin(actor.skin).then(image => {
+        this.skinGeneration.set(actor.id, generation); this.skinSources.set(actor.id, source);
+        if (source) pending.push(loadSkin(source).then(image => {
           if (this.characters.get(actor.id) === character && this.skinGeneration.get(actor.id) === generation) character.setSkin(image);
-        }).catch(error => onError(error.message));
-        else if (generation > 1) { character.dispose(); const replacement = new MinecraftCharacter(actor.id); this.characters.set(actor.id,replacement); this.scene.add(replacement.root); }
+        }).catch(error => { this.skinSources.delete(actor.id); onError(error.message); throw error; }));
+        else character.setSkin(createDefaultSkin());
       }
     }
+    this.assetsReady = Promise.all([this.assetsReady?.catch(() => {}), ...pending]);
+    this.assetsReady.catch(() => {});
+    return this.assetsReady;
   }
   cameraState() { const p = this.camera.position, t = this.controls.target; return { x:p.x,y:p.y,z:p.z,targetX:t.x,targetY:t.y,targetZ:t.z,fov:this.camera.fov }; }
   applyCamera(project,time) {
     this.controls.enabled = this.cameraMode === 'orbit';
+    if (this.cameraMode === 'cinematic' && project.closeUp) {
+      const { actor, framing, distance } = project.closeUp;
+      const head = this.characters.get(actor)?.joints.head;
+      if (!head) return;
+      head.updateWorldMatrix(true, false);
+      const target = new THREE.Vector3(0, framing === 'eyes' ? 0.28 : 0.25, 0.267);
+      const position = target.clone().add(new THREE.Vector3(0, 0, (framing === 'eyes' ? 0.55 : 1.05) * distance));
+      this.controls.target.copy(head.localToWorld(target)); this.camera.position.copy(head.localToWorld(position));
+      this.camera.up.set(0, 1, 0).transformDirection(head.matrixWorld);
+      this.camera.fov = 35; this.camera.updateProjectionMatrix(); this.camera.lookAt(this.controls.target);
+      return;
+    }
+    this.camera.up.set(0, 1, 0); this.camera.fov = 42; this.camera.updateProjectionMatrix();
     if (this.cameraMode === 'follow') {
       const actor = this.characters.get(this.selectedId); if (!actor) return;
       this.controls.target.copy(actor.root.position).add(new THREE.Vector3(0,1,0));

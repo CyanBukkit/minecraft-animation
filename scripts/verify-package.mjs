@@ -66,7 +66,18 @@ assert.equal(receipt.frameCount, 96); assert.equal(receipt.fps, 24);
 assert.equal(receipt.width, 320); assert.equal(receipt.height, 180);
 assert.equal(receipt.duration, 4); assert.equal(receipt.decoded.lastFrameDecoded, true);
 assert.equal(receipt.bytes, (await stat(path.join(install, 'rendered/movie.webm'))).size);
-const report = { passed: true, name: pkg.name, version: pkg.version, files: names.length, checkedSamples: safe.checkedSamples, receipt };
+// The new rig and close-up must also work from the installed distribution.
+const articulated = structuredClone(project);
+articulated.duration = 1; articulated.cameraTracks = {}; articulated.world = { kind: 'empty', blocks: [], heightmap: null };
+articulated.actors = [{ ...project.actors[0], position: [0, 0, 0], yaw: 0, preset: 'punch', rig: 'articulated', faceMode: 'animated', clips: [],
+  tracks: { 'face.leftBlink': [{ time: 0, value: 0, easing: 'linear' }, { time: 0.5, value: 1, easing: 'linear' }, { time: 1, value: 0, easing: 'linear' }] } }];
+articulated.closeUp = { actor: articulated.actors[0].id, framing: 'eyes', distance: 1.5 };
+await writeFile(path.join(install, 'articulated.json'), JSON.stringify(articulated));
+assert.equal(JSON.parse(run('check', 'articulated.json')).passed, true);
+run('render', 'articulated.json', '--output', 'articulated-render', '--width', '320', '--height', '180');
+const articulatedReceipt = await readJson(path.join(install, 'articulated-render/receipt.json'));
+assert.equal(articulatedReceipt.frameCount, 24); assert.equal(articulatedReceipt.duration, 1); assert.equal(articulatedReceipt.decoded.lastFrameDecoded, true);
+const report = { passed: true, name: pkg.name, version: pkg.version, files: names.length, checkedSamples: safe.checkedSamples, receipt, articulatedReceipt };
 await copyFile(archive, path.join(release, pack.filename));
 await writeFile(path.join(release, 'verification.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report, null, 2));

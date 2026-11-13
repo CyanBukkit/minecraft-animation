@@ -22,7 +22,10 @@
     "ai",
     "cli"
   ],
-  "author": "",
+  "author": {
+    "name": "SmallXY",
+    "email": "2569224983@qq.com"
+  },
   "license": "ISC",
   "type": "module",
   "dependencies": {
@@ -71,5 +74,15 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
-  }
+  },
+  "contributors": [
+    {
+      "name": "CyanBukkit",
+      "url": "https://github.com/CyanBukkit"
+    },
+    {
+      "name": "Codex",
+      "url": "https://openai.com/codex/"
+    }
+  ]
 }

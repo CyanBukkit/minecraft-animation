@@ -1,11 +1,12 @@
 import { CHANNELS, CAMERA_CHANNELS, PRESETS, CLIP_ACTIONS } from './animation.js';
 import { EFFECT_PRESETS } from '../caibei/effects.js';
+import { channelRange } from './character-controls.js';
 
 export const PROJECT_VERSION = 1;
 export const MAX_PROJECT_BYTES = 12 * 1024 * 1024;
 export const BLOCK_KINDS = ['grass', 'dirt', 'stone', 'wood', 'bark', 'leaf', 'sand', 'roof', 'path', 'water', 'glass', 'glow'];
 export function createActor(id = 'actor-1', name = '方块旅人') {
-  return { id, name, position: [-3.2, 0.5, 3], yaw: 0, preset: 'story', skin: null, tracks: {}, clips: [] };
+  return { id, name, position: [-3.2, 0.5, 3], yaw: 0, preset: 'story', skin: null, rig: 'classic', faceMode: 'skin', skinMode: 'imported', tracks: {}, clips: [] };
 }
 export function createProject() {
   return {
@@ -16,13 +17,20 @@ export function createProject() {
     environment: 'sunset',
     actors: [createActor()],
     cameraTracks: {},
+    closeUp: null,
     world: { kind: 'camp', blocks: [], heightmap: null },
     props: [],
     resourcePack: null,
+    textureMode: 'imported',
     effects: [],
   };
 }
 const fail = message => { throw new Error(message); };
+function mode(value, fallback, allowed) {
+  const result = value ?? fallback;
+  if (!allowed.includes(result)) fail('模型、面部或贴图模式无效');
+  return result;
+}
 const finite = (value, min, max) => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
 function validateTracks(tracks, allowed, duration) {
   if (!tracks || typeof tracks !== 'object' || Array.isArray(tracks)) fail('动画轨道格式不正确');
@@ -34,6 +42,8 @@ function validateTracks(tracks, allowed, duration) {
       if (!key || !finite(key.time, 0, duration) || key.time <= previous || !finite(key.value, -10000, 10000)) fail('关键帧必须按时间递增排列且数值有效');
       if (!['smooth', 'linear', 'step'].includes(key.easing)) fail('关键帧插值无效');
       if (channel === 'fov' && !finite(key.value, 15, 100)) fail('镜头视角应为 15–100 度');
+      const range = channelRange(channel);
+      if (range && !finite(key.value, ...range)) fail('弯曲或表情通道超出范围：' + channel);
       previous = key.time;
       return { time: key.time, value: key.value, easing: key.easing };
     });
@@ -147,10 +157,19 @@ export function validateProject(data) {
     if (actor.skin !== null && (typeof actor.skin !== 'string' || actor.skin.length > 3 * 1024 * 1024 || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(actor.skin))) fail('皮肤必须是本地 PNG 图像');
     return {
       id: actor.id, name: actor.name, position: [...actor.position], yaw: actor.yaw, preset: actor.preset, skin: actor.skin,
+      rig: mode(actor.rig, 'classic', ['classic', 'articulated']),
+      faceMode: mode(actor.faceMode, 'skin', ['skin', 'animated']),
+      skinMode: mode(actor.skinMode, 'imported', ['default', 'imported']),
       tracks: validateTracks(actor.tracks, CHANNELS, data.duration),
       clips: validateClips(actor.clips, data.duration),
     };
   });
+  let closeUp = null;
+  if (data.closeUp != null) {
+    const value = data.closeUp;
+    if (!value || !ids.has(value.actor) || !['face', 'eyes'].includes(value.framing) || !finite(value.distance ?? 1, 0.5, 3)) fail('特写目标或距离无效');
+    closeUp = { actor: value.actor, framing: value.framing, distance: value.distance ?? 1 };
+  }
   return {
     version: PROJECT_VERSION,
     name: data.name,
@@ -159,9 +178,11 @@ export function validateProject(data) {
     environment: data.environment,
     actors,
     cameraTracks: validateTracks(data.cameraTracks, CAMERA_CHANNELS, data.duration),
+    closeUp,
     world: validateWorld(data.world),
     props: validateProps(data.props),
     resourcePack: validateResourcePack(data.resourcePack),
+    textureMode: mode(data.textureMode, 'imported', ['default', 'imported']),
     effects: validateEffects(data.effects, data.duration),
   };
 }

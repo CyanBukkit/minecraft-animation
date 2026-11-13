@@ -10,7 +10,7 @@ export { ACTIONS, listActions, PRESETS, CLIP_ACTIONS, actionPose, applyPreset } 
 export { compileComposition } from './compile.js';
 export { createMineTreeProject } from './mine-tree.js';
 export { checkProjectCollisions, boxesIntersect } from './collision.js';
-export { actorBoxes, RIG_PARTS } from '../core/rig.js';
+export { actorBoxes, RIG_PARTS, rigParts } from '../core/rig.js';
 export { ImportBlend, importStructure } from './import-structure.js';
 export { parseBlend } from './blend.js';
 export { parseGltfBytes } from './gltf.js';
@@ -27,3 +27,5 @@ export { Effect, EFFECT_PRESETS, sampleEffect } from './effects.js';
 export {
   trap, actionClip, clips, series, nod, compileScript, waveHello, runPast, campGreeting, vfx, effectClip,
 } from './trap/index.js';
+
+export { BEND_CHANNELS, FACE_CHANNELS, EXPRESSIONS, MAX_BEND } from '../core/character-controls.js';

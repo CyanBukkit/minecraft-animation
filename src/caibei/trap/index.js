@@ -9,8 +9,8 @@ import { useCurrentTime } from '../frame.js';
 import { Effect, EFFECT_PRESETS } from '../effects.js';
 
 /**
- * 一段动作片段。action 与界面预设相同：idle、walk、run、wave、jump、custom。
- * @param {'idle'|'walk'|'run'|'wave'|'jump'|'custom'} action
+ * 一段动作片段。action 与界面预设相同：idle、walk、run、wave、jump、crouch、sit、punch、kick、custom。
+ * @param {'idle'|'walk'|'run'|'wave'|'jump'|'crouch'|'sit'|'punch'|'kick'|'custom'} action
  * @param {{ actor?: string, from?: number, duration?: number }} [options]
  */
 export function actionClip(action, { actor = 'actor-1', from = 0, duration = 2 } = {}) {
@@ -25,8 +25,8 @@ export const run = options => actionClip('run', options);
 export const wave = options => actionClip('wave', options);
 export const jump = options => actionClip('jump', options);
 
-/** 五个常用动作。`clips.wave({ from: 2, duration: 3 })`。 */
-export const clips = { idle, walk, run, wave, jump };
+/** 常用动作（弯曲动作需 articulated 模式）。`clips.wave({ from: 2, duration: 3 })`。 */
+export const clips = { idle, walk, run, wave, jump, ...Object.fromEntries(['crouch', 'sit', 'punch', 'kick'].map(action => [action, options => actionClip(action, options)])) };
 
 /**
  * 按顺序接上几段动作。没写 from 时，上一段结束就是下一段开始。

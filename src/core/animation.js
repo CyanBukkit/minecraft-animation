@@ -1,10 +1,12 @@
+import { BEND_CHANNELS, FACE_CHANNELS } from './character-controls.js';
+
 export const JOINTS = ['body', 'head', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
 export const AXES = ['x', 'y', 'z'];
-export const CHANNELS = ['position.x', 'position.y', 'position.z', 'rotation.y', ...JOINTS.flatMap(joint => AXES.map(axis => `${joint}.${axis}`))];
+export const CHANNELS = ['position.x', 'position.y', 'position.z', 'rotation.y', ...JOINTS.flatMap(joint => AXES.map(axis => `${joint}.${axis}`)), ...BEND_CHANNELS, ...FACE_CHANNELS];
 export const CAMERA_CHANNELS = ['x', 'y', 'z', 'targetX', 'targetY', 'targetZ', 'fov'];
-export const PRESETS = { story: '林间问候', idle: '呼吸待机', walk: '循环行走', run: '循环奔跑', wave: '挥手招呼', jump: '原地跳跃', custom: '静态 / 关键帧' };
+export const PRESETS = { story: '林间问候', idle: '呼吸待机', walk: '循环行走', run: '循环奔跑', wave: '挥手招呼', jump: '原地跳跃', crouch: '屈膝蹲下', sit: '坐姿', punch: '屈肘出拳', kick: '抬腿踢出', custom: '静态 / 关键帧' };
 /** 可以叠在时间轴上的动作片段。林间问候是整段预设，不作为片段使用。 */
-export const CLIP_ACTIONS = ['idle', 'walk', 'run', 'wave', 'jump', 'custom'];
+export const CLIP_ACTIONS = ['idle', 'walk', 'run', 'wave', 'jump', 'crouch', 'sit', 'punch', 'kick', 'custom'];
 export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 export const smoothstep = t => t * t * (3 - 2 * t);
 
@@ -40,11 +42,15 @@ export function applyPreset(pose, preset, t) {
     pose['rightArm.x'] = -swing;
     pose['leftLeg.x'] = -swing;
     pose['rightLeg.x'] = swing;
+    pose['leftLeg.bend'] = Math.max(0, swing) * 0.8;
+    pose['rightLeg.bend'] = Math.max(0, -swing) * 0.8;
+    pose['leftArm.bend'] = pose['rightArm.bend'] = amplitude > 1 ? 1 : 0.2;
     pose['position.y'] += Math.abs(Math.sin(t * speed)) * 0.045 * weight;
   };
   const wave = weight => {
     pose['rightArm.z'] = (2.45 + Math.sin(t * 8) * 0.25) * weight;
     pose['rightArm.x'] = -0.18 * weight;
+    pose['rightArm.bend'] = (0.5 + Math.sin(t * 8) * 0.25) * weight;
     pose['head.z'] = -0.1 * weight;
     pose['head.y'] = Math.sin(t * 2) * 0.1 * weight;
   };
@@ -71,6 +77,34 @@ export function applyPreset(pose, preset, t) {
       pose['position.y'] += lift * 1.3;
       pose['leftArm.z'] = -lift * 0.6;
       pose['rightArm.z'] = lift * 0.6;
+      break;
+    }
+    case 'crouch':
+      pose['leftLeg.x'] = pose['rightLeg.x'] = -0.65;
+      pose['leftLeg.bend'] = pose['rightLeg.bend'] = 1.3;
+      pose['position.y'] -= 0.75 * (1 - Math.cos(0.65));
+      pose['leftArm.x'] = pose['rightArm.x'] = -0.4;
+      pose['leftArm.bend'] = pose['rightArm.bend'] = 0.65;
+      break;
+    case 'sit':
+      pose['leftLeg.x'] = pose['rightLeg.x'] = -Math.PI / 2;
+      pose['leftLeg.bend'] = pose['rightLeg.bend'] = Math.PI / 2;
+      pose['position.y'] -= 0.375;
+      pose['leftArm.bend'] = pose['rightArm.bend'] = 0.4;
+      break;
+    case 'punch': {
+      const reach = (1 - Math.cos(t * Math.PI * 2)) / 2;
+      pose['rightArm.x'] = -0.7 - reach * 0.7;
+      pose['rightArm.bend'] = 1.2 * (1 - reach);
+      pose['leftArm.bend'] = 0.9;
+      break;
+    }
+    case 'kick': {
+      const lift = (1 - Math.cos(t * Math.PI * 2)) / 2;
+      pose['rightLeg.x'] = -1.3 * lift;
+      pose['rightLeg.bend'] = 0.55 * Math.sin(lift * Math.PI);
+      pose['leftArm.x'] = -0.4 * lift;
+      pose['leftArm.bend'] = pose['rightArm.bend'] = 0.7;
       break;
     }
     case 'idle':

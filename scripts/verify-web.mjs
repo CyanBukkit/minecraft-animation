@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { verifyCharacter } from './verify-character.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { startPreviewServer } from '../src/node/server.js';
@@ -62,7 +63,9 @@ try {
   const regressions = await page.evaluate(() => window.__browserTestResults);
   assert.equal(regressions.every(result => result.pass), true, JSON.stringify(regressions.filter(result => !result.pass)));
   results.push('现有浏览器集成回归 ' + regressions.length + '/' + regressions.length);
+  const character = await verifyCharacter(page);
+  results.push(...character.results);
   assert.deepEqual(errors, []);
-  await writeFile('artifacts/web-verification/report.json', JSON.stringify({ passed: true, results, geometry, regressions }, null, 2) + String.fromCharCode(10));
+  await writeFile('artifacts/web-verification/report.json', JSON.stringify({ passed: true, results, geometry, regressions, character }, null, 2) + String.fromCharCode(10));
   console.log(JSON.stringify({ passed: true, results }, null, 2));
 } finally { await browser.close(); await server.close(); }

@@ -15,6 +15,18 @@
 
 验证 job 只有读权限。只有发布 job 拥有 `id-token: write`，不检出源码、不执行包生命周期脚本，发布前一个 job 生成并测试的 tarball。官方 Actions 固定到提交 SHA。
 
+## 本次绑定速查
+
+当前维护者署名为 **SmallXY <2569224983@qq.com>**。仓库位于 CyanBukkit 名下，所以 npm Trusted Publisher 的 **Organization or user 必须填 CyanBukkit**，不是提交作者 SmallXY，也不是 npm 登录用户名。
+
+- npm 包页面：<https://www.npmjs.com/package/minecraft-animation>
+- GitHub 发布工作流：<https://github.com/CyanBukkit/minecraft-animation/blob/main/.github/workflows/publish.yml>
+- 查看发布状态：<https://github.com/CyanBukkit/minecraft-animation/actions/workflows/publish.yml>
+
+登录有此包维护权限的 npm 账号，打开包页面 → Settings → Trusted Publisher → GitHub Actions，按下表填写并保存。登录和2FA在你自己的浏览器中完成；无需把密码、验证码或token发给协作者。
+
+**本次只提交源码和发布准备，不发布0.1.0、不创建tag或Release。** npm已发布版本不能覆盖。配置成功后，先按下节递增版本并验证，再发布对应GitHub Release。只有npm上的新版本实际可查，才算发布成功。
+
 ## 一次性绑定 npm 可信发布
 
 这一步在 npm 账户里完成，不是提交工作流就自动具备权限。需要包维护者登录并按 npm 提示进行验证；不要把密码、验证码或 token 发到聊天或提交到仓库。

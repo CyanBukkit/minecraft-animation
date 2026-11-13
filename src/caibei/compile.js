@@ -35,6 +35,9 @@ export function compileComposition(definition) {
     yaw: actor.yaw ?? 0,
     preset: actor.preset || 'custom',
     skin: actor.skin ?? null,
+    rig: actor.rig ?? 'classic',
+    faceMode: actor.faceMode ?? 'skin',
+    skinMode: actor.skinMode ?? 'imported',
     tracks: {},
     clips: [],
   }));
@@ -57,6 +60,8 @@ export function compileComposition(definition) {
     }));
   }
   if (definition.resourcePack) project.resourcePack = definition.resourcePack;
+  if (definition.textureMode) project.textureMode = definition.textureMode;
+  if (definition.camera?.closeUp) project.closeUp = definition.camera.closeUp;
   for (const key of definition.camera?.keys || []) {
     const time = requireTime(key.time, '镜头');
     const easing = key.easing || 'smooth';

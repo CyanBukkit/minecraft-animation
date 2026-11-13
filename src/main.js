@@ -1,4 +1,5 @@
 import './style.css';
+import { bindCharacterControls, refreshCharacterControls, refreshControlPose } from './ui/character-controls.js';
 import { Studio } from './scene/studio.js';
 import { createDefaultSkin, loadBlockImage, loadSkin } from './scene/textures.js';
 import { Timeline, CHANNELS, CAMERA_CHANNELS, AXES, PRESETS, sampleActor, upsertKey, clamp } from './core/animation.js';
@@ -94,10 +95,10 @@ function refreshActors() {
   $('#delete-actor').disabled = project.actors.length <= 1;
 }
 async function refreshFace() {
-  const actor = selectedActor(); const source = actor.skin;
+  const actor = selectedActor(); const source = actor.skinMode === 'default' ? null : actor.skin;
   try {
     const image = source ? await loadSkin(source) : createDefaultSkin();
-    if (selectedActor().id !== actor.id || selectedActor().skin !== source) return;
+    if (selectedActor().id !== actor.id || (selectedActor().skinMode === 'default' ? null : selectedActor().skin) !== source) return;
     const ctx = $('#face-preview').getContext('2d'); const scale = image.width / 64;
     ctx.clearRect(0,0,8,8); ctx.imageSmoothingEnabled = false;
     ctx.drawImage(image,8*scale,8*scale,8*scale,8*scale,0,0,8,8);
@@ -116,10 +117,11 @@ function refreshInspector() {
   const summary = $('#clip-summary');
   if (actor.clips?.length) { summary.hidden = false; summary.textContent = `时间轴上有 ${actor.clips.length} 段动作。点上面的预设会改回整段动作，并清掉这些片段。`; }
   else summary.hidden = true;
-  refreshFace(); refreshPose();
+  refreshCharacterControls(project, actor); refreshFace(); refreshPose();
 }
 function refreshPose() {
   const pose = sampleActor(selectedActor(),timeline.time);
+  refreshControlPose(selectedActor(), pose);
   $$('[data-position]').forEach(input => { if (document.activeElement !== input) input.value = pose[`position.${input.dataset.position}`].toFixed(2); });
   const yaw = Math.round(pose['rotation.y'] * 180 / Math.PI);
   if (document.activeElement !== $('#actor-yaw')) $('#actor-yaw').value = yaw;
@@ -132,7 +134,7 @@ function refreshPose() {
 }
 function trackGroup(channel) {
   if (channel.startsWith('position.') || channel.startsWith('rotation.')) return 'position';
-  if (channel.startsWith('body.') || channel.startsWith('head.')) return 'body';
+  if (channel.startsWith('body.') || channel.startsWith('head.') || channel.startsWith('face.')) return 'body';
   return 'limbs';
 }
 function refreshTracks() {
@@ -192,39 +194,32 @@ function refreshAll() {
   $('.scene-path span').textContent = worldLabel; $('.scene-facts span').textContent = worldLabel;
   $$('#environment button').forEach(button => { const active = button.dataset.environment === project.environment; button.classList.toggle('active',active); button.setAttribute('aria-pressed',active); });
   studio.setEnvironment(project.environment); studio.syncActors(project.actors,toast); studio.syncScene(project,toast);
-  applyResourcePack(project.resourcePack);
+  applyResourcePack(project.resourcePack).catch(() => {});
   $('#block-count').textContent = `${studio.world.blockCount.toLocaleString()} 方块`;
   refreshActors(); refreshInspector(); refreshTracks(); refreshUndo();
 }
 let packSignature = '';
 let packApplyGeneration = 0;
-let builtinPackNoted = false;
-function setPackIndicator(label, title) {
+let packPending = Promise.resolve();
+function setPackIndicator(label) {
   const node = $('#pack-indicator');
-  if (!node) return;
-  node.textContent = label;
-  node.title = title || label;
+  if (node) { node.textContent = label; node.title = label; }
 }
-async function applyResourcePack(pack) {
-  const generation = ++packApplyGeneration;
-  const userTextures = pack?.textures && Object.keys(pack.textures).length ? pack.textures : null;
-  const signature = userTextures ? JSON.stringify({ name: pack.name, textures: userTextures }) : 'builtin';
-  const label = userTextures ? (pack.name || '已导入贴图') : BUILTIN_PACK_NAME;
-  if (signature === packSignature && generation === packApplyGeneration) { setPackIndicator(label); return; }
+function applyResourcePack(pack) {
+  const userTextures = project.textureMode !== 'default' ? pack?.textures : null;
+  const signature = JSON.stringify(userTextures || {});
+  if (signature === packSignature) return packPending;
   packSignature = signature;
+  const generation = ++packApplyGeneration;
   const textures = { ...getBuiltinDefaultPack().textures, ...(userTextures || {}) };
-  studio.world.restoreBlockTextures();
-  for (const [kind, source] of Object.entries(textures)) {
-    if (generation !== packApplyGeneration) return;
-    try { studio.world.setBlockTexture(kind, await loadBlockImage(source)); }
-    catch (error) { if (generation === packApplyGeneration) toast(error.message); }
-  }
-  if (generation !== packApplyGeneration) return;
-  setPackIndicator(label, userTextures ? '已盖过内置默认贴图' : '原创像素图。导入你自己的版本 jar 或资源包后会换成游戏贴图。');
-  if (!userTextures && !builtinPackNoted) {
-    builtinPackNoted = true;
-    toast('正在使用内置默认贴图。版权原因不能附带官方材质。要游戏里的贴图，请点「导入资源包/版本 jar」，选择你电脑上的版本 jar 或资源包。');
-  }
+  packPending = Promise.all(Object.entries(textures).map(async ([kind, source]) => [kind, await loadBlockImage(source)]))
+    .then(images => {
+      if (generation !== packApplyGeneration) return;
+      studio.world.restoreBlockTextures();
+      for (const [kind, image] of images) studio.world.setBlockTexture(kind, image);
+      setPackIndicator(userTextures && Object.keys(userTextures).length ? pack.name : BUILTIN_PACK_NAME);
+    }).catch(error => { if (generation === packApplyGeneration) { packSignature = ''; toast(error.message); } throw error; });
+  return packPending;
 }
 
 function setCameraMode(mode) {
@@ -237,7 +232,7 @@ async function applyProject(data, { recordHistory = true } = {}) {
   if (recordHistory) remember();
   project = validated; if (!project.actors.some(actor => actor.id === selectedId)) selectedId = project.actors[0].id;
   timeline.duration = project.duration; timeline.seek(Math.min(timeline.time,project.duration));
-  setPlaying(false); refreshAll(); saveLocal();
+  setPlaying(false); refreshAll(); await Promise.all([studio.assetsReady, applyResourcePack(project.resourcePack)]); studio.render(project, timeline.time, selectedId); saveLocal();
 }
 function writeChannel(channel,value) {
   if (!Number.isFinite(value)) return;
@@ -282,9 +277,13 @@ function recordVideo() {
 }
 
 function bindUi() {
+  bindCharacterControls({ getProject: () => project, selectedActor, remember, commit, writeChannel,
+    refresh: refreshInspector, sync: () => studio.syncActors(project.actors, toast),
+    preview: () => { setCameraMode('cinematic'); studio.render(project, timeline.time, selectedId); },
+    applyTextures: () => applyResourcePack(project.resourcePack), toast });
   for (const [preset,label] of Object.entries(PRESETS)) {
     const button = document.createElement('button'); button.dataset.preset = preset; button.textContent = label;
-    button.addEventListener('click',() => { remember(); selectedActor().preset = preset; selectedActor().clips = []; setPlaying(false); seek(0); refreshInspector(); commit(); });
+    button.addEventListener('click',() => { remember(); selectedActor().preset = preset; selectedActor().clips = []; if (['crouch', 'sit', 'punch', 'kick'].includes(preset)) { selectedActor().rig = 'articulated'; studio.syncActors(project.actors, toast); } setPlaying(false); seek(0); refreshInspector(); commit(); });
     $('#preset-list').append(button);
   }
   $('#play').onclick = () => setPlaying(!timeline.playing);
@@ -333,7 +332,7 @@ function bindUi() {
     commit(); refreshPose(); toast('已删除当前角色姿态帧');
   };
   $('#camera-key').onclick = () => {
-    remember(); setPlaying(false); timeline.seek(frameTime()); const camera = studio.cameraState();
+    remember(); setPlaying(false); timeline.seek(frameTime()); if (project.closeUp) studio.render(project, timeline.time, selectedId); const camera = studio.cameraState();
     for (const channel of CAMERA_CHANNELS) project.cameraTracks[channel] = upsertKey(project.cameraTracks[channel],timeline.time,camera[channel],easing());
     commit(); toast(`已记录 ${timeline.time.toFixed(2)} 秒的镜头`);
   };
@@ -352,7 +351,7 @@ function bindUi() {
   };
   $('#delete-actor').onclick = () => {
     if (project.actors.length <= 1) return;
-    remember(); project.actors = project.actors.filter(actor => actor.id !== selectedId); selectedId = project.actors[0].id; refreshAll(); commit(); toast('角色已移除，可撤销恢复');
+    remember(); if (project.closeUp?.actor === selectedId) project.closeUp = null; project.actors = project.actors.filter(actor => actor.id !== selectedId); selectedId = project.actors[0].id; refreshAll(); commit(); toast('角色已移除，可撤销恢复');
   };
   $$('#environment button').forEach(button => { button.onclick = () => { remember(); project.environment = button.dataset.environment; studio.setEnvironment(project.environment); $$('#environment button').forEach(b => { b.classList.toggle('active',b === button); b.setAttribute('aria-pressed',b === button); }); commit(); }; });
   for (const mode of ['orbit','cinematic','follow']) $(`#view-${mode}`).onclick = () => setCameraMode(mode);
@@ -378,7 +377,7 @@ function bindUi() {
       const source = await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('皮肤文件读取失败')); reader.readAsDataURL(file); });
       await loadSkin(source); const actor = project.actors.find(item => item.id === actorId);
       if (!actor) throw new Error('角色已不存在');
-      remember(); actor.skin = source; studio.syncActors(project.actors,toast); refreshFace(); commit(); toast('皮肤已应用并写入项目');
+      remember(); actor.skin = source; actor.skinMode = 'imported'; await studio.syncActors(project.actors,toast); refreshInspector(); commit(); toast('皮肤已应用并写入项目');
     } catch (error) { toast(error.message); } finally { event.target.value = ''; }
   };
   $('#snapshot').onclick = () => {
@@ -458,7 +457,7 @@ function bindUi() {
       const count = Object.keys(loaded.textures).length;
       remember();
       project.resourcePack = { name: loaded.name, textures: loaded.textures };
-      packSignature = '';
+      project.textureMode = 'imported'; refreshInspector();
       commit();
       await applyResourcePack(project.resourcePack);
       toast(`已换上「${loaded.name}」，${count} 种方块贴图已盖过内置默认`);
@@ -477,7 +476,7 @@ function bindUi() {
       remember();
       project.resourcePack = project.resourcePack || { name: '自定纹理', textures: {} };
       project.resourcePack = { name: project.resourcePack.name || '自定纹理', textures: { ...project.resourcePack.textures, [kind]: source } };
-      packSignature = '';
+      project.textureMode = 'imported'; refreshInspector();
       commit();
       await applyResourcePack(project.resourcePack);
       toast('这种方块的纹理已换上，并写进项目');
@@ -543,7 +542,7 @@ async function boot() {
         setCameraMode('cinematic'); studio.grid.visible = false;
         studio.renderer.setPixelRatio(1); studio.renderer.setSize(width, height, false);
         studio.camera.aspect = width / height; studio.camera.updateProjectionMatrix();
-        packSignature = ''; await applyResourcePack(project.resourcePack);
+        await Promise.all([studio.assetsReady, applyResourcePack(project.resourcePack)]);
         seek(0); studio.render(project, 0, selectedId);
       },
       sampleActor,

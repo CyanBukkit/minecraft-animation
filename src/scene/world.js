@@ -129,7 +129,7 @@ export function createWorld(scene) {
   let extraCount = 0;
   let extraSignature = '';
   const materialFor = kind => materials[kind === 'grass' ? 'grassBlock' : kind] || materials.stone;
-  const defaultMaps = new Map(Object.entries(materials).filter(([, material]) => material?.map).map(([kind, material]) => [kind, material.map]));
+  const defaultMaps = new Map(Object.entries(materials).filter(([, material]) => material?.isMaterial).map(([kind, material]) => [kind, material.map]));
   return {
     root,
     get blockCount() { return (campVisible ? blockCount : 0) + extraCount; },

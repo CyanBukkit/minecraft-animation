@@ -1,3 +1,4 @@
+import { CHANNELS } from '../core/animation.js';
 import { createProject } from '../core/project.js';
 import { createDefaultSkin, loadSkin } from '../scene/textures.js';
 import { getRecordingType, startRecording } from '../core/recording.js';
@@ -46,7 +47,7 @@ export async function runBrowserTests(api) {
     $('#delete-key').click(); assert(!api.project.actors[0].tracks['head.x'],'删除关键帧失败');
   });
   await check('完整姿态记录、镜头记录与平滑采样可用',() => {
-    api.seek(0); $('#add-key').click(); assert(Object.keys(api.project.actors[0].tracks).length===22,'完整姿态通道数错误');
+    api.seek(0); $('#add-key').click(); assert(Object.keys(api.project.actors[0].tracks).length===CHANNELS.length,'完整姿态通道数错误');
     $('#camera-key').click(); const x=api.camera.position.x;
     api.seek(4); api.camera.position.x=x+4; $('#camera-key').click(); $('#view-cinematic').click();
     api.seek(2); assert(Math.abs(api.camera.position.x-(x+2))<0.001,'镜头中间帧未插值');
