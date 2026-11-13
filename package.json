@@ -1,0 +1,75 @@
+{
+  "name": "minecraft-animation",
+  "version": "0.1.0",
+  "description": "彩贝方映 — AI 可编程的 Minecraft Web 动画工作室与 Node.js 渲染 CLI",
+  "main": "./src/caibei/index.js",
+  "scripts": {
+    "test": "node --test",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "record-demo": "node scripts/record-demo.mjs",
+    "prepack": "npm run skill:check && npm run build",
+    "test:web": "node scripts/verify-web.mjs",
+    "skill:pack": "node scripts/package-skill.mjs",
+    "skill:check": "node scripts/package-skill.mjs --check",
+    "test:package": "node scripts/verify-package.mjs"
+  },
+  "keywords": [
+    "minecraft",
+    "animation",
+    "threejs",
+    "ai",
+    "cli"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.64.1",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  },
+  "bin": {
+    "minecraft-animation": "./bin/minecraft-animation.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/caibei/index.js",
+    "./node": "./src/node/project.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin/",
+    "minecraft-animation",
+    "src/caibei/**/*.js",
+    "src/core/*.js",
+    "src/node/*.js",
+    "dist/index.html",
+    "dist/assets/",
+    "dist/favicon.svg",
+    "dist/builtin-pack/",
+    "docs/minecraft-animation.md",
+    "docs/npm-publish.md",
+    "docs/skills/minecraft-animation/",
+    "docs/LICENSE.md",
+    "docs/downloads/minecraft-animation.skill",
+    "docs/blender-chestnutmc.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CyanBukkit/minecraft-animation.git"
+  },
+  "homepage": "https://github.com/CyanBukkit/minecraft-animation#readme",
+  "bugs": {
+    "url": "https://github.com/CyanBukkit/minecraft-animation/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

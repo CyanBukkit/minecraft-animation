@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+.playwright-mcp/
+coverage/
+artifacts/
+*.tgz
+*.local
+.vite/
+
+# Local dumps / archives (not source)
+*.zip
+uploads/
+
+# User-owned assets are not part of the public distribution.
+/public/skins/
+/public/**/*.mca
+/src/demo/hyt-lobby-blocks.json
+*.jar
+*.blend
+
+# Obsolete nested first-draft studio copy under skills/
+# Keep only the MCP-format skill package skills/caibei-fangying/
+/skills/*
+!/skills/caibei-fangying/
+!/skills/caibei-fangying/**

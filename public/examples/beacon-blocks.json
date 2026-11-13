@@ -1,0 +1,15 @@
+{
+  "format": "caibei-blocks",
+  "version": 1,
+  "blocks": [
+    { "kind": "stone", "x": 3, "y": 1, "z": -2 },
+    { "kind": "wood", "x": 3, "y": 2, "z": -2 },
+    { "kind": "glow", "x": 3, "y": 3, "z": -2 }
+  ],
+  "heightmap": {
+    "width": 4,
+    "depth": 4,
+    "origin": [6, 5],
+    "heights": [1, 1, 1, 1, 1, 2, 2, 1, 1, 2, 3, 1, 1, 1, 1, 1]
+  }
+}

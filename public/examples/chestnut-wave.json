@@ -1,0 +1,54 @@
+{
+  "format": "caibei-structure",
+  "version": 1,
+  "name": "栗籽人模 · 挥手示例",
+  "fps": 30,
+  "space": "caibei",
+  "rig": "chestnutmc",
+  "objects": [
+    { "name": "ChestnutMC_Rig_V3", "typeName": "armature" },
+    { "name": "preview", "typeName": "mesh" }
+  ],
+  "bones": [
+    { "name": "control.root", "parent": null },
+    { "name": "control.hip", "parent": "control.root" },
+    { "name": "control.spine", "parent": "control.hip" },
+    { "name": "control.body_upper", "parent": "control.spine" },
+    { "name": "control.head", "parent": "control.body_upper" },
+    { "name": "control.upper_arm.L", "parent": "control.body_upper" },
+    { "name": "control.upper_arm.R", "parent": "control.body_upper" },
+    { "name": "control.lower_arm.R", "parent": "control.upper_arm.R" },
+    { "name": "control.upper_leg.L", "parent": "control.hip" },
+    { "name": "control.upper_leg.R", "parent": "control.hip" },
+    { "name": "control.finger1.R", "parent": "control.upper_arm.R" }
+  ],
+  "actions": [
+    {
+      "name": "挥手",
+      "frameStart": 0,
+      "frameEnd": 30,
+      "curves": [
+        {
+          "bone": "control.upper_arm.R",
+          "property": "rotation_euler",
+          "index": 2,
+          "keys": [
+            { "frame": 0, "value": 0, "interpolation": "smooth" },
+            { "frame": 12, "value": 2.4, "interpolation": "smooth" },
+            { "frame": 30, "value": 0.2, "interpolation": "smooth" }
+          ]
+        },
+        {
+          "bone": "control.head",
+          "property": "rotation_euler",
+          "index": 1,
+          "keys": [
+            { "frame": 0, "value": 0, "interpolation": "smooth" },
+            { "frame": 15, "value": 0.35, "interpolation": "smooth" },
+            { "frame": 30, "value": 0, "interpolation": "smooth" }
+          ]
+        }
+      ]
+    }
+  ]
+}
